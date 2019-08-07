@@ -79,7 +79,7 @@
                                  (fs.read-file-sync 'utf8)
                                  sibilant.strip-shebang)
 
-                      [relative-dir relative-file] (relative-dir-and-file file))
+                      [relative-dir relative-file] (relative-dir-and-file file-name))
 
                  (set sibilant.source-cache relative-file source)
 

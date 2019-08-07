@@ -64,6 +64,52 @@ returned. Aliased as `#`, as shown in examples."
          (indent (apply ^do body))
          "})"])
 
+
+(macro arrow-fn (args-or-options ...body)
+       (debug! 3 args-or-options)
+       (var args (or args-or-options.args args-or-options)
+            body (or args-or-options.body body)
+            node (or args-or-options.node this)
+            args (if (node? args 'expression 'bracket) args.contents
+                     (and (node? args) (empty? body)) (do (assign body [ args ]) [])
+                     (node? args 'brace) [ args ]
+                     args)
+            name (when args-or-options.name
+                       (|> args-or-options.name
+                           transpile
+                           output-formatter
+                           (replace-all "\\W+" "$")
+                           (.concat "$")))
+            rest (detect args (#-> (node? 'dots)))
+
+            destructured-args (map args (#(arg)
+                                          (if (node? arg 'bracket 'brace)
+                                              (do (var arg-name (generate-symbol (make-symbol-clue arg)))
+                                                  { arg-name &
+                                                    destructured-pair [ arg arg-name ] })
+                                              { arg-name arg })))
+
+            destructured-statements (|> [ (when (exists? rest) [ rest `(Array.prototype.slice.call arguments @(- args.length 1)) ])
+                                          ...(map destructured-args (#-> (get 'destructured-pair))) ]
+                                        flat-compact))
+
+       (assign node (detect
+                     [ node args-or-options.name args (first body) ]
+                     (#(n) (and (node? n) (get n 'file)))))
+
+
+       ["("
+         (interleave ", " (map destructured-args (#-> (get 'arg-name)))) ") => {"
+         (when (and sibilant.state.function-comments (or name node))
+               (indent ["/*"
+                         (when name (" " (sibilant.pretty-print args-or-options.name false)))
+                         (when node (" " node.file ":" node.line ":" node.col))
+                         " */"]))
+         (when destructured-statements.length (indent `(var ...@destructured-statements)))
+         (indent (apply ^do body))
+         "}"])
+
+
 (alias-macro lambda #)
 (docs "most often called as its alias, `#>`, thunk creates a function
 with no named arguments. To refer to arguments anonymously, use #n,
